@@ -91,6 +91,13 @@ export class WebSocketGateway {
             });
         });
 
+        this.sessionManager.on('session-error', ({ userId, error }: any) => {
+            this.sendToUser(userId, {
+                type: 'error',
+                payload: error,
+            });
+        });
+
         // 监听 Approval 请求
         this.sessionManager.on('approval-request', ({ userId, sessionId, request }: any) => {
             this.handleApprovalRequest(userId, sessionId, request);

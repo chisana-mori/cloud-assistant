@@ -149,6 +149,16 @@ export class SessionManager {
             session.state = 'closed';
         });
 
+        // 进程错误
+        appServer.on('process-error', (error) => {
+            session.lastActiveAt = new Date();
+            this.emit('session-error', {
+                sessionId: session.id,
+                userId: session.userId,
+                error,
+            });
+        });
+
         // 错误
         appServer.on('error', (error) => {
             console.error(`Session ${session.id} error:`, error);
