@@ -88,7 +88,12 @@ export type ThreadItem =
     | CommandExecutionItem
     | FileChangeItem
     | McpToolCallItem
-    | WebSearchItem;
+    | WebSearchItem
+    | CollabToolCallItem
+    | ImageViewItem
+    | EnteredReviewModeItem
+    | ExitedReviewModeItem
+    | CompactedItem;
 
 export interface UserMessageItem {
     id: string;
@@ -148,6 +153,40 @@ export interface WebSearchItem {
     query: string;
 }
 
+export interface CollabToolCallItem {
+    id: string;
+    type: 'collabToolCall';
+    server: string;
+    tool: string;
+    status: 'inProgress' | 'completed' | 'failed';
+    arguments?: unknown;
+    result?: unknown;
+    error?: { message: string };
+}
+
+export interface ImageViewItem {
+    id: string;
+    type: 'imageView';
+    url?: string;
+    path?: string;
+}
+
+export interface EnteredReviewModeItem {
+    id: string;
+    type: 'enteredReviewMode';
+}
+
+export interface ExitedReviewModeItem {
+    id: string;
+    type: 'exitedReviewMode';
+}
+
+export interface CompactedItem {
+    id: string;
+    type: 'compacted';
+    summary?: string;
+}
+
 // ============ 事件类型 ============
 
 export interface ThreadStartedEvent {
@@ -190,12 +229,48 @@ export interface ItemCompletedEvent {
 }
 
 export interface ItemDeltaEvent {
-    method: 'item/agentMessage/delta' | 'item/reasoning/delta';
+    method:
+        | 'item/agentMessage/delta'
+        | 'item/reasoning/delta'
+        | 'item/reasoning/summaryTextDelta'
+        | 'item/reasoning/summaryPartAdded'
+        | 'item/reasoning/textDelta'
+        | 'item/commandExecution/outputDelta'
+        | 'item/fileChange/outputDelta';
     params: {
         threadId: string;
         turnId: string;
         itemId: string;
         delta: string;
+    };
+}
+
+export interface TurnPlanUpdatedEvent {
+    method: 'turn/plan/updated';
+    params: {
+        threadId: string;
+        turnId: string;
+        explanation?: string;
+        plan: Array<{ step: string; status: 'pending' | 'inProgress' | 'completed' }>;
+    };
+}
+
+export interface TurnDiffUpdatedEvent {
+    method: 'turn/diff/updated';
+    params: {
+        threadId: string;
+        turnId: string;
+        diff: string;
+    };
+}
+
+export interface ThreadTokenUsageUpdatedEvent {
+    method: 'thread/tokenUsage/updated';
+    params: {
+        threadId: string;
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
     };
 }
 

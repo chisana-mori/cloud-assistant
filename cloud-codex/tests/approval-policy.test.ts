@@ -1,8 +1,5 @@
+import { describe, it, expect } from 'vitest';
 import { ApprovalPolicyEngine, type ApprovalConfig, type CommandApprovalRequest } from '../src/utils/approval-policy.js';
-
-/**
- * 测试 Approval 策略引擎
- */
 
 const config: ApprovalConfig = {
     timeoutMs: 5 * 60 * 1000,
@@ -15,7 +12,6 @@ const config: ApprovalConfig = {
 
 const engine = new ApprovalPolicyEngine(config);
 
-// 测试用例
 const testCases: Array<{
     name: string;
     request: CommandApprovalRequest;
@@ -93,36 +89,13 @@ const testCases: Array<{
             },
             expected: 'manual',
         },
-    ];
+];
 
-console.log('🧪 Testing Approval Policy Engine\n');
-
-let passed = 0;
-let failed = 0;
-
-testCases.forEach((testCase) => {
-    const result = engine.evaluate(testCase.request);
-    const isPass = result === testCase.expected;
-
-    if (isPass) {
-        passed++;
-        console.log(`✅ ${testCase.name}`);
-        console.log(`   Command: ${testCase.request.command}`);
-        console.log(`   Result: ${result} (expected: ${testCase.expected})\n`);
-    } else {
-        failed++;
-        console.log(`❌ ${testCase.name}`);
-        console.log(`   Command: ${testCase.request.command}`);
-        console.log(`   Result: ${result} (expected: ${testCase.expected})\n`);
-    }
+describe('ApprovalPolicyEngine', () => {
+    it('evaluates approval decisions for known commands and paths', () => {
+        for (const testCase of testCases) {
+            const result = engine.evaluate(testCase.request);
+            expect(result, testCase.name).toBe(testCase.expected);
+        }
+    });
 });
-
-console.log(`\n📊 Results: ${passed} passed, ${failed} failed`);
-
-if (failed === 0) {
-    console.log('🎉 All tests passed!');
-    process.exit(0);
-} else {
-    console.log('❌ Some tests failed');
-    process.exit(1);
-}

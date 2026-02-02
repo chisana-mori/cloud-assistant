@@ -28,7 +28,7 @@ export interface ClientMessage {
  * 服务端消息类型
  */
 export interface ServerMessage {
-    type: 'event' | 'approval/request' | 'response' | 'error';
+    type: 'event' | 'approval/request' | 'response' | 'error' | 'ir/update';
     payload: any;
     requestId?: string;
 }
@@ -81,6 +81,13 @@ export class WebSocketGateway {
             this.sendToUser(userId, {
                 type: 'event',
                 payload: event,
+            });
+        });
+
+        this.sessionManager.on('ir-update', ({ userId, run }: any) => {
+            this.sendToUser(userId, {
+                type: 'ir/update',
+                payload: run,
             });
         });
 

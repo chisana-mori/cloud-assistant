@@ -123,6 +123,16 @@ export class SessionManager {
             });
         });
 
+        // IR 更新
+        appServer.on('ir/update', (run) => {
+            session.lastActiveAt = new Date();
+            this.emit('ir-update', {
+                sessionId: session.id,
+                userId: session.userId,
+                run,
+            });
+        });
+
         // Approval 请求
         appServer.on('approval-request', (request: ApprovalRequest) => {
             session.lastActiveAt = new Date();

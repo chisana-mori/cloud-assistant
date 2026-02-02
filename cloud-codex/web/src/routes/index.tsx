@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCodexStream } from '../hooks/useCodexStream'
-import { ActionCard } from '../components/ActionCard'
+import { StepCard } from '../components/StepCard'
 import { nanoid } from 'nanoid'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Send, Bot, User, PlusCircle, Settings, MessageSquare, Loader } from 'lucide-react'
+import { Send, Bot, PlusCircle, Settings, MessageSquare, Loader, List, LayoutList } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
     component: Index,
@@ -20,7 +18,7 @@ function Index() {
         localStorage.setItem('userId', userId)
     }, [userId])
 
-    const { messages, status, startTurn, respondApproval, sendMessage, initThread: initThreadApi, isThinking } = useCodexStream({
+    const { status, startTurn, respondApproval, initThread: initThreadApi, isThinking, runView } = useCodexStream({
         userId,
     })
 
@@ -43,10 +41,12 @@ function Index() {
         }
     }, [status, currentThreadId, initThreadApi])
 
+    const [viewMode, setViewMode] = useState<'run' | 'plan'>('run')
+
     // 自动滚动到底部
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages])
+    }, [runView, viewMode])
 
     const handleSend = () => {
         if (!inputValue.trim()) return
@@ -103,7 +103,7 @@ function Index() {
                             <span className="text-[10px] text-slate-400">Just now</span>
                         </div>
                         <div className="text-xs text-slate-400 line-clamp-2">
-                            {messages.length > 0 ? (messages[messages.length - 1].content || 'System Activity').slice(0, 50) : 'No messages yet...'}
+                            {runView?.steps?.length ? (runView.steps[runView.steps.length - 1].summary || runView.steps[runView.steps.length - 1].stream || 'System Activity').toString().slice(0, 50) : 'No messages yet...'}
                         </div>
                     </div>
                 </div>
@@ -128,8 +128,22 @@ function Index() {
                             {status}
                         </span>
                     </div>
-                    <div className="flex gap-2">
-                        {messages.length === 0 && status === 'connected' && (
+                    <div className="flex gap-2 items-center">
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-1">
+                            <button
+                                onClick={() => setViewMode('run')}
+                                className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${viewMode === 'run' ? 'bg-white dark:bg-black/40 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                <List size={12} /> Run
+                            </button>
+                            <button
+                                onClick={() => setViewMode('plan')}
+                                className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${viewMode === 'plan' ? 'bg-white dark:bg-black/40 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                <LayoutList size={12} /> Plan
+                            </button>
+                        </div>
+                        {!runView?.steps?.length && status === 'connected' && (
                             <button
                                 onClick={handleResetThread}
                                 className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full transition-colors"
@@ -143,61 +157,116 @@ function Index() {
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
                     <div className="max-w-3xl mx-auto flex flex-col gap-6 pb-4">
-                        {messages.length === 0 && (
+                        {(!runView || runView.steps.length === 0) && (
                             <div className="flex flex-col items-center justify-center mt-20 text-slate-300">
                                 <MessageSquare size={48} className="mb-4 opacity-50" />
                                 <span>Start a conversation with Cloud Codex</span>
                             </div>
                         )}
 
-                        {messages.map((msg) => (
-                            <div key={msg.id} className={`group flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm
-                  ${msg.role === 'user' ? 'bg-slate-900 dark:bg-white' : 'bg-green-100 text-green-600 dark:bg-green-900/30'}
-                `}>
-                                    {msg.role === 'user' ?
-                                        <User size={16} className="text-white dark:text-black" /> :
-                                        <Bot size={18} />
-                                    }
-                                </div>
-
-                                <div className={`flex flex-col gap-1 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                    <div className="flex items-center gap-2 text-xs text-slate-400 px-1">
-                                        <span>{msg.role === 'user' ? 'You' : 'Codex'}</span>
+                        {runView && viewMode === 'run' && (
+                            <div className="space-y-4">
+                                {(runView.tokenUsage || runView.diff) && (
+                                    <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="text-sm font-semibold">Run Summary</div>
+                                            {runView.tokenUsage?.updatedAt && (
+                                                <div className="text-xs text-slate-400">
+                                                    {new Date(runView.tokenUsage.updatedAt).toLocaleString()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {runView.tokenUsage && (
+                                            <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3">
+                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
+                                                    <div className="text-[10px] uppercase text-slate-400">Input</div>
+                                                    <div className="font-semibold">{runView.tokenUsage.inputTokens ?? '-'}</div>
+                                                </div>
+                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
+                                                    <div className="text-[10px] uppercase text-slate-400">Output</div>
+                                                    <div className="font-semibold">{runView.tokenUsage.outputTokens ?? '-'}</div>
+                                                </div>
+                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
+                                                    <div className="text-[10px] uppercase text-slate-400">Total</div>
+                                                    <div className="font-semibold">{runView.tokenUsage.totalTokens ?? '-'}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {runView.diff?.diff && (
+                                            <div className="text-xs">
+                                                <div className="font-semibold mb-1 text-slate-500">Turn Diff</div>
+                                                <pre className="bg-slate-900 text-emerald-300 p-3 rounded max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                                                    {runView.diff.diff}
+                                                </pre>
+                                            </div>
+                                        )}
                                     </div>
+                                )}
 
-                                    {msg.content && (
-                                        <div className={`
-                      px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm
-                      prose prose-sm max-w-none break-words dark:prose-invert
-                      ${msg.role === 'user'
-                                                ? 'bg-slate-100 dark:bg-slate-800 rounded-tr-sm'
-                                                : 'bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-tl-sm'}
-                    `}>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                {msg.content}
-                                            </ReactMarkdown>
+                                {isThinking && (
+                                    <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2 text-sm font-semibold">
+                                                <Bot size={16} className="text-emerald-600 animate-pulse" />
+                                                Assistant is responding
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-sky-100 text-sky-700">inProgress</span>
                                         </div>
-                                    )}
+                                        <div className="space-y-2">
+                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse"></div>
+                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 w-5/6 animate-pulse"></div>
+                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 w-2/3 animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                    {msg.items.length > 0 && (
-                                        <div className="flex flex-col gap-2 w-full mt-1">
-                                            {msg.items.map(item => (
-                                                <ActionCard
-                                                    key={item.id}
-                                                    item={item}
-                                                    onApprove={(id) => respondApproval(id, 'accept')}
-                                                    onDecline={(id) => respondApproval(id, 'decline')}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                {runView.steps.map((step) => (
+                                    <StepCard
+                                        key={step.stepId}
+                                        step={step}
+                                        onApprove={(id) => respondApproval(id, 'accept')}
+                                        onDecline={(id) => respondApproval(id, 'decline')}
+                                    />
+                                ))}
                             </div>
-                        ))}
+                        )}
 
-                        {isThinking && (
+                        {runView && viewMode === 'plan' && (
+                            <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="text-sm font-semibold">Plan</div>
+                                    <div className="text-xs text-slate-400">
+                                        {runView.plan?.updatedAt ? new Date(runView.plan.updatedAt).toLocaleString() : 'No updates'}
+                                    </div>
+                                </div>
+                                {runView.plan?.explanation && (
+                                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-3 ir-markdown">
+                                        {runView.plan.explanation}
+                                    </div>
+                                )}
+                                {runView.plan?.steps?.length ? (
+                                    <div className="space-y-2">
+                                        {runView.plan.steps.map((p, idx) => (
+                                            <div key={`${p.step}-${idx}`} className="flex items-center justify-between text-sm">
+                                                <div className="text-slate-700 dark:text-slate-200">{p.step}</div>
+                                                <span className={`
+                                                    px-2 py-0.5 rounded text-xs font-mono
+                                                    ${p.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                        p.status === 'inProgress' ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-slate-100 text-slate-700'}
+                                                `}>
+                                                    {p.status}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-slate-400">No plan yet.</div>
+                                )}
+                            </div>
+                        )}
+
+                        {isThinking && viewMode === 'run' && !runView && (
                             <div className="flex gap-4">
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm bg-green-100 text-green-600 dark:bg-green-900/30">
                                     <Bot size={18} />

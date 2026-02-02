@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useLatest } from 'ahooks';
 import { nanoid } from 'nanoid';
 import type { ChatMessage, CodexItem } from '../types/chat';
+import type { RunView } from '../types/ir';
 
 interface UseCodexStreamOptions {
     userId: string;
@@ -12,6 +13,7 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
     const wsRef = useRef<WebSocket | null>(null);
     const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [runView, setRunView] = useState<RunView | null>(null);
     const latestMessages = useLatest(messages);
     const pendingRequests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; }>());
     const [isThinking, setIsThinking] = useState(false);
@@ -70,6 +72,8 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
             const event = data.payload;
             onEvent?.(event);
             processCodexEvent(event);
+        } else if (data.type === 'ir/update') {
+            setRunView(data.payload as RunView);
         } else if (data.type === 'approval/request') {
             processApprovalRequest(data.payload);
         }
@@ -264,6 +268,7 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
     return {
         status,
         messages,
+        runView,
         isThinking,
         sendMessage,
         sendRequest,

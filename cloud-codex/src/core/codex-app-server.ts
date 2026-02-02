@@ -12,6 +12,8 @@ import type {
     ApprovalRequest,
     ApprovalResponse,
 } from '../types/protocol.js';
+import { IrMapper } from './ir-mapper.js';
+import type { RawEvent } from '../types/ir.js';
 
 /**
  * Codex App Server 进程封装
@@ -21,10 +23,12 @@ export class CodexAppServer extends EventEmitter {
     private process: ChildProcess | null = null;
     private rl: readline.Interface | null = null;
     private requestId = 0;
+    private rawEventSeq = 0;
     private pendingRequests = new Map<number | string, {
         resolve: (value: any) => void;
         reject: (error: Error) => void;
     }>();
+    private irMapper = new IrMapper();
 
     constructor(
         private workingDirectory: string,
@@ -160,6 +164,7 @@ export class CodexAppServer extends EventEmitter {
         // 请求消息（Approval 请求）
         if ('id' in message && 'method' in message) {
             const request = message as JsonRpcRequest;
+            this.handleIrEvent(request, request.id);
 
             if (request.method === 'item/commandExecution/requestApproval' ||
                 request.method === 'item/fileChange/requestApproval') {
@@ -171,8 +176,35 @@ export class CodexAppServer extends EventEmitter {
         // 通知消息（事件）
         if ('method' in message && !('id' in message)) {
             const notification = message as JsonRpcNotification;
+            this.handleIrEvent(notification);
             this.emit('event', notification);
         }
+    }
+
+    private handleIrEvent(message: JsonRpcNotification | JsonRpcRequest, rpcId?: number | string): void {
+        const params = message.params ?? {};
+        const rawEvent: RawEvent = {
+            id: `evt_${++this.rawEventSeq}`,
+            ts: Date.now(),
+            threadId: this.extractThreadId(message.method, params),
+            turnId: this.extractTurnId(message.method, params),
+            type: message.method,
+            payload: params,
+            rpcId,
+        };
+
+        const run = this.irMapper.consume(rawEvent);
+        if (run) {
+            this.emit('ir/update', run);
+        }
+    }
+
+    private extractThreadId(method: string, params: any): string | undefined {
+        return params?.threadId ?? params?.turn?.threadId ?? params?.thread?.id;
+    }
+
+    private extractTurnId(method: string, params: any): string | undefined {
+        return params?.turnId ?? params?.turn?.id;
     }
 
     /**
