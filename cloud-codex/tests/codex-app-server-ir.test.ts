@@ -23,4 +23,19 @@ describe('CodexAppServer IR emission', () => {
         expect(emitted.steps.length).toBe(1);
         expect(emitted.steps[0].kind).toBe('assistantMessage');
     });
+
+    it('emits process-error with summary/details', () => {
+        const server = new CodexAppServer(process.cwd());
+        let payload: any = null;
+        server.on('process-error', (err) => {
+            payload = err;
+        });
+
+        (server as any).handleProcessError('stderr', 'ERROR ... 401 Unauthorized ...');
+
+        expect(payload).not.toBeNull();
+        expect(payload.summary).toContain('鉴权失败');
+        expect(payload.details).toContain('401');
+        expect(payload.source).toBe('stderr');
+    });
 });

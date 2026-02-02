@@ -14,6 +14,7 @@ import type {
 } from '../types/protocol.js';
 import { IrMapper } from './ir-mapper.js';
 import type { RawEvent } from '../types/ir.js';
+import { summarizeError } from './error-utils.js';
 
 /**
  * Codex App Server 进程封装
@@ -29,6 +30,8 @@ export class CodexAppServer extends EventEmitter {
         reject: (error: Error) => void;
     }>();
     private irMapper = new IrMapper();
+    private lastThreadId?: string;
+    private lastTurnId?: string;
 
     constructor(
         private workingDirectory: string,
@@ -75,11 +78,14 @@ export class CodexAppServer extends EventEmitter {
 
             // 监听 stderr
             this.process.stderr?.on('data', (data) => {
-                console.error('Codex stderr:', data.toString());
+                const details = data.toString();
+                console.error('Codex stderr:', details);
+                this.handleProcessError('stderr', details);
             });
 
             // 监听进程退出
             this.process.on('exit', (code) => {
+                this.handleProcessError('exit', `Codex process exited with code ${code ?? 'unknown'}`);
                 this.emit('exit', code);
             });
 
@@ -153,6 +159,7 @@ export class CodexAppServer extends EventEmitter {
             if (pending) {
                 this.pendingRequests.delete(response.id);
                 if (response.error) {
+                    this.handleProcessError('response', `${response.error.code}: ${response.error.message}`);
                     pending.reject(new Error(response.error.message));
                 } else {
                     pending.resolve(response.result);
@@ -195,8 +202,26 @@ export class CodexAppServer extends EventEmitter {
 
         const run = this.irMapper.consume(rawEvent);
         if (run) {
+            this.lastThreadId = rawEvent.threadId ?? this.lastThreadId;
+            this.lastTurnId = rawEvent.turnId ?? this.lastTurnId;
             this.emit('ir/update', run);
         }
+    }
+
+    private handleProcessError(
+        source: 'stderr' | 'exit' | 'response',
+        details: string,
+        context?: { threadId?: string; turnId?: string }
+    ): void {
+        const summary = summarizeError(details);
+        this.emit('process-error', {
+            summary,
+            details,
+            source,
+            ts: Date.now(),
+            threadId: context?.threadId ?? this.lastThreadId,
+            turnId: context?.turnId ?? this.lastTurnId,
+        });
     }
 
     private extractThreadId(method: string, params: any): string | undefined {
