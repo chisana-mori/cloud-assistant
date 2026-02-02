@@ -44,3 +44,4 @@ bun.lockb
 .codex/
 workspaces/
 .worktrees/
+config.toml

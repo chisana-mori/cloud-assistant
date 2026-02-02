@@ -60,6 +60,14 @@ export class IrMapper {
             case 'turn/completed': {
                 run.status = payload?.turn?.status ?? run.status ?? 'completed';
                 run.meta = { ...run.meta, lastTurnId: payload?.turn?.id ?? turnId };
+                if (turnId) {
+                    for (const step of run.steps) {
+                        if (step.turnId === turnId && step.kind === 'reasoning' && step.status === 'inProgress') {
+                            step.status = 'completed';
+                            step.tsEnd = event.ts;
+                        }
+                    }
+                }
                 break;
             }
             case 'turn/plan/updated': {
@@ -103,6 +111,14 @@ export class IrMapper {
                 if (!item?.id) {
                     break;
                 }
+                if (item.type !== 'reasoning' && turnId) {
+                    for (const step of run.steps) {
+                        if (step.turnId === turnId && step.kind === 'reasoning' && step.status === 'inProgress') {
+                            step.status = 'completed';
+                            step.tsEnd = event.ts;
+                        }
+                    }
+                }
                 const step = this.getOrCreateStep(threadId, item.id, this.mapStepKind(item.type), turnId);
                 step.status = 'inProgress';
                 step.tsStart = event.ts;
@@ -116,7 +132,7 @@ export class IrMapper {
                     break;
                 }
                 const step = this.getOrCreateStep(threadId, item.id, this.mapStepKind(item.type), turnId);
-                step.status = this.mapStatus(item.status);
+                step.status = item.type === 'reasoning' ? 'completed' : this.mapStatus(item.status);
                 step.tsEnd = event.ts;
                 step.result = this.extractItemResult(item);
                 this.appendRawEvent(step, event.id);

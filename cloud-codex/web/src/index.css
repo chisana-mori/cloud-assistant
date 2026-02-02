@@ -2,7 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+    --chart-1: 173 58% 39%;
+    --chart-2: 43 74% 66%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+html,
+body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -10,48 +82,74 @@ html, body {
 
 @layer components {
   .ir-markdown {
-    @apply prose prose-slate max-w-none text-[14px] leading-7;
+    @apply prose prose-slate dark:prose-invert max-w-none text-[13px] leading-relaxed font-maple text-foreground;
   }
-  .ir-markdown :where(h1, h2, h3) {
-    @apply font-semibold tracking-tight;
+
+  .ir-markdown :where(p) {
+    @apply my-1.5 leading-relaxed;
   }
+
+  .ir-markdown :where(h1, h2, h3, h4) {
+    @apply font-semibold tracking-tight text-foreground mt-4 mb-2;
+  }
+
   .ir-markdown :where(h1) {
-    @apply text-2xl;
+    @apply text-lg;
   }
+
   .ir-markdown :where(h2) {
-    @apply text-xl mt-6;
+    @apply text-base;
   }
+
   .ir-markdown :where(h3) {
-    @apply text-lg mt-4;
+    @apply text-sm uppercase text-muted-foreground font-bold;
   }
+
   .ir-markdown :where(ul, ol) {
-    @apply pl-5;
+    @apply pl-4 my-2 space-y-0.5;
   }
+
   .ir-markdown :where(li) {
-    @apply my-1;
+    @apply my-0.5 pl-1;
   }
+
   .ir-markdown :where(blockquote) {
-    @apply border-l-4 border-emerald-300 bg-emerald-50/40 text-slate-700 px-4 py-2 rounded-r-lg;
+    @apply border-l-2 border-primary/50 bg-muted/30 text-muted-foreground px-3 py-1 rounded-r-md not-italic my-2;
   }
+
   .ir-markdown :where(code):not(pre > code) {
-    @apply px-1 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[12px];
+    @apply px-1 py-0.5 rounded bg-muted/50 text-primary font-maple text-[11px] border border-border/50;
   }
+
   .ir-markdown :where(pre) {
-    @apply bg-slate-950 text-slate-100 rounded-xl p-4 overflow-x-auto;
+    @apply bg-muted/40 text-foreground border border-border/50 rounded-lg p-3 overflow-x-auto my-3;
   }
+
   .ir-markdown :where(pre code) {
-    @apply text-slate-100;
+    @apply text-[12px] font-maple bg-transparent p-0 border-none text-foreground;
   }
+
   .ir-markdown :where(hr) {
-    @apply border-slate-200 my-6;
+    @apply border-border/50 my-4;
   }
+
   .ir-markdown :where(table) {
-    @apply text-sm;
+    @apply text-xs w-full my-3 border-collapse;
   }
+
   .ir-markdown :where(thead) {
-    @apply bg-slate-100;
+    @apply bg-muted/50 text-muted-foreground;
   }
-  .ir-markdown :where(th, td) {
-    @apply border border-slate-200 px-2 py-1;
+
+  .ir-markdown :where(th) {
+    @apply border border-border/50 px-3 py-2 font-semibold text-left;
+  }
+
+  .ir-markdown :where(td) {
+    @apply border border-border/50 px-3 py-2;
+  }
+
+  .ir-markdown a {
+    @apply text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary;
   }
 }

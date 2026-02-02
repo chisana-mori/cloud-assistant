@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useCodexStream } from '../hooks/useCodexStream'
-import { StepCard } from '../components/StepCard'
+import { useCodexStream } from '@/hooks/useCodexStream'
+import { StepCard } from '@/components/StepCard'
 import { nanoid } from 'nanoid'
-import { Send, Bot, PlusCircle, Settings, MessageSquare, Loader, List, LayoutList } from 'lucide-react'
+import { Send, Bot, Settings, Loader, LayoutList, SquarePen, ChevronUp, ChevronDown, Package, Server, HardDrive, Database, Network, Terminal } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 export const Route = createFileRoute('/')({
     component: Index,
@@ -41,22 +45,42 @@ function Index() {
         }
     }, [status, currentThreadId, initThreadApi])
 
-    const [viewMode, setViewMode] = useState<'run' | 'plan'>('run')
+    const [isPlanCollapsed, setIsPlanCollapsed] = useState(false)
+    const [tempUserMessage, setTempUserMessage] = useState<string | null>(null)
+
+    // Clear temp message when real message appears or thinking stops
+    useEffect(() => {
+        if (!isThinking) {
+            setTempUserMessage(null)
+        } else if (runView?.steps?.length) {
+            const lastStep = runView.steps[runView.steps.length - 1]
+            if (lastStep.kind === 'userMessage') {
+                setTempUserMessage(null)
+            }
+        }
+    }, [runView, isThinking])
+
+    const isResponding = isThinking || !!runView?.steps?.some((step) =>
+        step.status === 'inProgress' && (step.kind === 'assistantMessage' || step.kind === 'reasoning')
+    )
 
     // 自动滚动到底部
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [runView, viewMode])
+    }, [runView])
 
-    const handleSend = () => {
-        if (!inputValue.trim()) return
+    const sendMessage = (text: string) => {
+        if (!text.trim()) return
         if (!currentThreadId) {
             console.warn('Thread not initialized yet');
             return;
         }
-        startTurn(currentThreadId, inputValue)
+        setTempUserMessage(text)
+        startTurn(currentThreadId, text)
         setInputValue('')
     }
+
+    const handleSend = () => sendMessage(inputValue)
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -77,243 +101,282 @@ function Index() {
     }
 
     return (
-        <div className="flex h-screen w-full bg-[#f9f9f9] dark:bg-[#1e1e1e] text-slate-900 dark:text-slate-100 font-sans">
-
-            {/* Sidebar - NextChat Style */}
-            <div className="w-[280px] flex-shrink-0 flex flex-col border-r bg-white dark:bg-[#1e1e1e] border-slate-200 dark:border-slate-800 hidden md:flex">
-                <div className="p-5">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="font-bold text-xl">Cloud Codex</div>
-                        <div className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                            v1.0
+        <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+            {/* Sidebar */}
+            <aside className="hidden md:flex w-[280px] flex-col border-r bg-muted/10">
+                {/* Sidebar Header - Aligned with Main Header */}
+                <div className="h-14 flex items-center px-4 border-b">
+                    <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-lg bg-primary flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary-foreground" />
                         </div>
-                    </div>
-                    <div className="text-sm text-slate-500 mb-6">Build your own AI workspace.</div>
-
-                    <button className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                        <PlusCircle size={18} />
-                        <span className="font-medium">New Chat</span>
-                    </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-3">
-                    <div className="p-3 rounded-xl bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-700 shadow-sm cursor-pointer hover:border-green-500 transition-colors">
-                        <div className="flex justify-between items-start mb-1">
-                            <span className="font-medium text-sm">Default Thread</span>
-                            <span className="text-[10px] text-slate-400">Just now</span>
-                        </div>
-                        <div className="text-xs text-slate-400 line-clamp-2">
-                            {runView?.steps?.length ? (runView.steps[runView.steps.length - 1].summary || runView.steps[runView.steps.length - 1].stream || 'System Activity').toString().slice(0, 50) : 'No messages yet...'}
-                        </div>
+                        <span className="font-bold text-lg tracking-tight">Cloud Codex</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">v1.0</span>
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-slate-600 dark:text-slate-400">
-                        <Settings size={18} />
-                        <span className="text-sm font-medium">Settings</span>
+                <div className="flex-1 overflow-hidden py-4">
+                    <div className="px-4 mb-2 flex items-center justify-between group">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Recent Activity
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={handleResetThread}
+                            title="New Chat"
+                        >
+                            <SquarePen className="h-3.5 w-3.5" />
+                        </Button>
                     </div>
+                    <ScrollArea className="h-full px-2">
+                        <Button variant="ghost" className="w-full justify-start h-auto py-3 px-3 mb-1 text-left font-normal bg-accent/50">
+                            <div className="flex flex-col gap-1 w-full overflow-hidden">
+                                <span className="font-medium text-sm truncate">Default Thread</span>
+                                <span className="text-xs text-muted-foreground truncate">
+                                    {runView?.steps?.length
+                                        ? (runView.steps[runView.steps.length - 1].summary || runView.steps[runView.steps.length - 1].stream || 'System Activity').toString().slice(0, 30)
+                                        : 'No messages yet...'}
+                                </span>
+                            </div>
+                        </Button>
+                    </ScrollArea>
                 </div>
-            </div>
 
-            {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
+                <div className="p-4 border-t px-4 min-h-[162px] flex flex-col justify-end">
+                    <Button variant="ghost" className="w-full justify-start gap-2">
+                        <Settings className="h-4 w-4" />
+                        Settings
+                    </Button>
+                </div>
+            </aside>
 
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col h-full relative">
                 {/* Header */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur z-10 sticky top-0">
-                    <div className="flex flex-col">
-                        <span className="font-bold text-lg">Default Session</span>
-                        <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <span className={`w-1.5 h-1.5 rounded-full ${status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            {status}
-                        </span>
+                <header className="h-14 flex items-center justify-between px-6 border-b bg-background/50 backdrop-blur supports-[backdrop-filter]:bg-background/20 sticky top-0 z-10 w-full">
+                    <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">Default Session</span>
+                        <div className={cn("h-1.5 w-1.5 rounded-full animate-pulse", status === 'connected' ? 'bg-emerald-500' : 'bg-destructive')} />
                     </div>
-                    <div className="flex gap-2 items-center">
-                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-1">
-                            <button
-                                onClick={() => setViewMode('run')}
-                                className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${viewMode === 'run' ? 'bg-white dark:bg-black/40 shadow-sm' : 'text-slate-500'}`}
-                            >
-                                <List size={12} /> Run
-                            </button>
-                            <button
-                                onClick={() => setViewMode('plan')}
-                                className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${viewMode === 'plan' ? 'bg-white dark:bg-black/40 shadow-sm' : 'text-slate-500'}`}
-                            >
-                                <LayoutList size={12} /> Plan
-                            </button>
-                        </div>
+
+                    <div className="flex items-center gap-2">
                         {!runView?.steps?.length && status === 'connected' && (
-                            <button
-                                onClick={handleResetThread}
-                                className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full transition-colors"
-                            >
-                                Reset Thread
-                            </button>
+                            <Button variant="outline" size="sm" onClick={handleResetThread} className="h-8 text-xs">
+                                Reset
+                            </Button>
                         )}
                     </div>
+                </header>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-hidden w-full relative">
+                    <ScrollArea className="h-full w-full">
+                        <div className="max-w-3xl mx-auto p-4 md:p-8 flex flex-col gap-6 pb-4">
+                            {(!runView || runView.steps.length === 0) && !isThinking && (
+                                <div className="h-[50vh] flex flex-col items-center justify-center text-muted-foreground/50 gap-4">
+                                    <div className="h-16 w-16 rounded-2xl bg-muted/30 flex items-center justify-center">
+                                        <Bot className="h-8 w-8" />
+                                    </div>
+                                    <p className="text-sm font-medium">How can I help you today?</p>
+                                </div>
+                            )}
+
+                            {runView && (
+                                <div className="space-y-6">
+
+
+                                    {runView.steps.map((step) => (
+                                        <StepCard
+                                            key={step.stepId}
+                                            step={step}
+                                            onApprove={(id) => respondApproval(id, 'accept')}
+                                            onDecline={(id) => respondApproval(id, 'decline')}
+                                        />
+                                    ))}
+
+                                    {/* Optimistic User Message */}
+                                    {isThinking && tempUserMessage && (
+                                        (!runView?.steps?.length || runView.steps[runView.steps.length - 1].kind !== 'userMessage') && (
+                                            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                                <StepCard
+                                                    step={{
+                                                        stepId: 'temp-user-msg',
+                                                        kind: 'userMessage',
+                                                        status: 'completed',
+                                                        meta: { text: tempUserMessage },
+                                                        items: []
+                                                    } as any}
+                                                    onApprove={() => { }}
+                                                    onDecline={() => { }}
+                                                />
+                                            </div>
+                                        )
+                                    )}
+
+                                    {isResponding && (
+                                        <div className="flex items-center gap-3 p-4 text-muted-foreground animate-in fade-in duration-300">
+                                            <div className="relative flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                                            </div>
+                                            <div className="text-sm font-maple font-medium tracking-wide">
+                                                Codex is thinking...
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div ref={messagesEndRef} className="h-1" />
+                        </div>
+                    </ScrollArea>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
-                    <div className="max-w-3xl mx-auto flex flex-col gap-6 pb-4">
-                        {(!runView || runView.steps.length === 0) && (
-                            <div className="flex flex-col items-center justify-center mt-20 text-slate-300">
-                                <MessageSquare size={48} className="mb-4 opacity-50" />
-                                <span>Start a conversation with Cloud Codex</span>
+                <div className="p-4 pt-0 z-20"> {/* Removed border-t and bg logic to look seamless */}
+                    <div className="max-w-3xl mx-auto relative group flex flex-col gap-2">
+
+                        {/* Floating Plan Widget */}
+                        {runView?.plan && (
+                            <div className={cn(
+                                "rounded-xl border border-border/30 shadow-sm backdrop-blur-md transition-all duration-300 overflow-hidden",
+                                "bg-background/40 hover:bg-background/60",
+                                isPlanCollapsed ? "" : "mb-1"
+                            )}>
+                                {/* Header / Toggle */}
+                                <div
+                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted/10 transition-colors select-none"
+                                    onClick={() => setIsPlanCollapsed(!isPlanCollapsed)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <LayoutList className="h-3.5 w-3.5 text-primary/70" />
+                                        <span className="text-xs font-medium text-muted-foreground">Implementation Plan</span>
+                                        {runView.plan.updatedAt && (
+                                            <span className="text-[10px] text-muted-foreground/50 hidden sm:inline">
+                                                Updated {new Date(runView.plan.updatedAt).toLocaleTimeString()}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-muted-foreground/50">
+                                        {isPlanCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                    </div>
+                                </div>
+
+                                {/* Expanded Content */}
+                                {!isPlanCollapsed && (
+                                    <div className="px-4 pb-3 pt-0 max-h-[30vh] overflow-y-auto">
+                                        {/* Explanation */}
+                                        {runView.plan.explanation && (
+                                            <div className="p-2 mb-3 bg-muted/20 rounded text-[11px] text-muted-foreground leading-relaxed border border-border/10">
+                                                {runView.plan.explanation}
+                                            </div>
+                                        )}
+
+                                        {/* Minimal Timeline */}
+                                        <div className="space-y-3 relative pl-4 before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-[1px] before:bg-border/30">
+                                            {runView.plan.steps?.map((p, idx) => (
+                                                <div key={`${p.step}-${idx}`} className="relative pl-3 text-xs group/item">
+                                                    <div className={cn(
+                                                        "absolute left-[-15px] top-[5px] h-2.5 w-2.5 rounded-full border-[2px] z-10 bg-background transition-colors",
+                                                        p.status === 'completed' ? "border-emerald-500/30 text-emerald-500" :
+                                                            p.status === 'inProgress' ? "border-primary/30 text-primary" :
+                                                                "border-border/40 text-muted-foreground"
+                                                    )}>
+                                                        {p.status === 'completed' && <div className="h-full w-full rounded-full bg-emerald-500/80" />}
+                                                        {p.status === 'inProgress' && <div className="h-full w-full rounded-full bg-primary/80 animate-pulse" />}
+                                                    </div>
+
+                                                    <div className={cn(
+                                                        "transition-opacity duration-200",
+                                                        p.status === 'completed' ? "text-muted-foreground/60 line-through" :
+                                                            p.status === 'inProgress' ? "text-foreground font-medium" :
+                                                                "text-muted-foreground/80"
+                                                    )}>
+                                                        {p.step}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {runView && viewMode === 'run' && (
-                            <div className="space-y-4">
-                                {(runView.tokenUsage || runView.diff) && (
-                                    <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="text-sm font-semibold">Run Summary</div>
-                                            {runView.tokenUsage?.updatedAt && (
-                                                <div className="text-xs text-slate-400">
-                                                    {new Date(runView.tokenUsage.updatedAt).toLocaleString()}
-                                                </div>
+                        {/* Domain Expert Chips */}
+                        {!runView?.steps?.length && !isThinking && (
+                            <div className="animate-in slide-in-from-bottom-5 fade-in duration-500 mb-4 px-1">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="h-1 w-1 rounded-full bg-primary/70" />
+                                    <span className="text-[11px] font-medium text-muted-foreground/80 tracking-wide uppercase">
+                                        选择一个领域进行专家SOP生成吧
+                                    </span>
+                                    {!currentThreadId && (
+                                        <span className="text-[10px] text-muted-foreground/50 flex items-center gap-1">
+                                            <Loader className="h-3 w-3 animate-spin" />
+                                            Connecting...
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                    {[
+                                        { id: 'container', label: '容器', icon: Package },
+                                        { id: 'kvm', label: 'KVM', icon: Server },
+                                        { id: 'storage', label: '存储', icon: HardDrive },
+                                        { id: 'database', label: '数据库', icon: Database },
+                                        { id: 'network', label: '网络', icon: Network },
+                                        { id: 'ops', label: '应用运维', icon: Terminal },
+                                    ].map((domain) => (
+                                        <button
+                                            key={domain.id}
+                                            onClick={() => sendMessage(`使用头脑风暴技能，在当前${domain.label}领域下，引导专家进行领域专家知识挖掘，通过以点到面的方式，最终输出一个操作性和质量极高的文档。`)}
+                                            disabled={isResponding || !currentThreadId}
+                                            className={cn(
+                                                "flex flex-col items-center justify-center gap-2 p-3 rounded-xl transition-all duration-300 group cursor-pointer",
+                                                "bg-background/50 border border-border/40 shadow-sm",
+                                                "hover:bg-primary/5 hover:border-primary/20 hover:scale-[1.02] hover:shadow-md",
+                                                "active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                                             )}
-                                        </div>
-                                        {runView.tokenUsage && (
-                                            <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3">
-                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
-                                                    <div className="text-[10px] uppercase text-slate-400">Input</div>
-                                                    <div className="font-semibold">{runView.tokenUsage.inputTokens ?? '-'}</div>
-                                                </div>
-                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
-                                                    <div className="text-[10px] uppercase text-slate-400">Output</div>
-                                                    <div className="font-semibold">{runView.tokenUsage.outputTokens ?? '-'}</div>
-                                                </div>
-                                                <div className="bg-slate-50 dark:bg-black/40 rounded-lg p-2">
-                                                    <div className="text-[10px] uppercase text-slate-400">Total</div>
-                                                    <div className="font-semibold">{runView.tokenUsage.totalTokens ?? '-'}</div>
-                                                </div>
+                                        >
+                                            <div className="p-1.5 rounded-lg bg-muted/50 group-hover:bg-background transition-colors">
+                                                <domain.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                             </div>
-                                        )}
-                                        {runView.diff?.diff && (
-                                            <div className="text-xs">
-                                                <div className="font-semibold mb-1 text-slate-500">Turn Diff</div>
-                                                <pre className="bg-slate-900 text-emerald-300 p-3 rounded max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
-                                                    {runView.diff.diff}
-                                                </pre>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {isThinking && (
-                                    <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2 text-sm font-semibold">
-                                                <Bot size={16} className="text-emerald-600 animate-pulse" />
-                                                Assistant is responding
-                                            </div>
-                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-sky-100 text-sky-700">inProgress</span>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse"></div>
-                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 w-5/6 animate-pulse"></div>
-                                            <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 w-2/3 animate-pulse"></div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {runView.steps.map((step) => (
-                                    <StepCard
-                                        key={step.stepId}
-                                        step={step}
-                                        onApprove={(id) => respondApproval(id, 'accept')}
-                                        onDecline={(id) => respondApproval(id, 'decline')}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {runView && viewMode === 'plan' && (
-                            <div className="bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="text-sm font-semibold">Plan</div>
-                                    <div className="text-xs text-slate-400">
-                                        {runView.plan?.updatedAt ? new Date(runView.plan.updatedAt).toLocaleString() : 'No updates'}
-                                    </div>
-                                </div>
-                                {runView.plan?.explanation && (
-                                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-3 ir-markdown">
-                                        {runView.plan.explanation}
-                                    </div>
-                                )}
-                                {runView.plan?.steps?.length ? (
-                                    <div className="space-y-2">
-                                        {runView.plan.steps.map((p, idx) => (
-                                            <div key={`${p.step}-${idx}`} className="flex items-center justify-between text-sm">
-                                                <div className="text-slate-700 dark:text-slate-200">{p.step}</div>
-                                                <span className={`
-                                                    px-2 py-0.5 rounded text-xs font-mono
-                                                    ${p.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                                        p.status === 'inProgress' ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-slate-100 text-slate-700'}
-                                                `}>
-                                                    {p.status}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-xs text-slate-400">No plan yet.</div>
-                                )}
-                            </div>
-                        )}
-
-                        {isThinking && viewMode === 'run' && !runView && (
-                            <div className="flex gap-4">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm bg-green-100 text-green-600 dark:bg-green-900/30">
-                                    <Bot size={18} />
-                                </div>
-                                <div className="flex flex-col gap-1 items-start">
-                                    <div className="flex items-center gap-2 text-xs text-slate-400 px-1">
-                                        <span>Codex</span>
-                                    </div>
-                                    <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm bg-white dark:bg-[#2a2a2a] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-2">
-                                        <Loader className="animate-spin text-slate-400" size={14} />
-                                        <span className="text-slate-400">Thinking...</span>
-                                    </div>
+                                            <span className="text-[11px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                                                {domain.label}
+                                            </span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         )}
-                        <div ref={messagesEndRef} />
-                    </div>
-                </div>
 
-                {/* Input Area */}
-                <div className="p-4 bg-white dark:bg-[#1e1e1e]">
-                    <div className="max-w-3xl mx-auto relative rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2a2a2a] shadow-sm focus-within:ring-2 focus-within:ring-green-500/20 focus-within:border-green-500 transition-all">
-                        <textarea
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={isThinking ? "Waiting for Codex..." : "Type a message to Cloud Codex..."}
-                            disabled={isThinking}
-                            className="w-full bg-transparent border-0 p-3 min-h-[50px] max-h-[200px] resize-none focus:ring-0 text-sm outline-none disabled:opacity-50"
-                            rows={1}
-                            style={{ height: 'auto', minHeight: '50px' }}
-                        />
-                        <div className="absolute right-2 bottom-2">
-                            <button
+                        <div className="relative">
+                            <Textarea
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder={isResponding ? "Codex is thinking..." : "Ask Cloud Codex something..."}
+                                disabled={isResponding}
+                                className="min-h-[60px] max-h-[200px] resize-none pr-14 pl-4 py-3.5 bg-muted/40 border-muted-foreground/20 focus-visible:ring-1 focus-visible:ring-primary/50 text-base md:text-sm shadow-sm transition-all rounded-xl"
+                                rows={1}
+                            />
+                            <Button
+                                size="icon"
                                 onClick={handleSend}
-                                disabled={!inputValue.trim() || isThinking}
-                                className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                disabled={!inputValue.trim() || isResponding}
+                                className="absolute right-2 bottom-2 h-8 w-8 rounded-lg shadow-none transition-all"
                             >
-                                <Send size={16} />
-                            </button>
+                                {isResponding ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            </Button>
                         </div>
                     </div>
-                    <div className="text-center text-[10px] text-slate-400 mt-2">
-                        AI can make mistakes. Please check executing commands.
+                    <div className="text-center mt-3">
+                        <p className="text-[10px] text-muted-foreground/60">
+                            AI-generated responses may be inaccurate.
+                        </p>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     )
 }

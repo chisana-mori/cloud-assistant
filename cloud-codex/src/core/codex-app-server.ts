@@ -47,7 +47,7 @@ export class CodexAppServer extends EventEmitter {
         return new Promise((resolve, reject) => {
             this.process = spawn('codex', [
                 'app-server',
-                '-c', 'base_instructions = "你是一名杰出的运维管理专家，熟知应用关联资产以及应用属性"'
+                '-c', 'base_instructions = "你是一名杰出的运维管理专家，熟知应用关联资产以及应用属性,禁止使用web_search工具，且必须使用中文回答所有问题"'
             ], {
                 cwd: this.workingDirectory,
                 stdio: ['pipe', 'pipe', 'pipe'],

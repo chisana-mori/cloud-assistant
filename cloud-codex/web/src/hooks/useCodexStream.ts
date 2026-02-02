@@ -85,10 +85,10 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
 
     // 处理 Codex 事件并更新消息状态
     const processCodexEvent = (event: any) => {
-        const currentMessages = [...latestMessages.current];
+        const currentMessages = [...(latestMessages.current || [])];
 
         // 工具函数：查找或创建消息
-        const getOrCreateMessage = (threadId: string, turnId: string, role: 'assistant' | 'user') => {
+        const getOrCreateMessage = (_threadId: string, turnId: string, role: 'assistant' | 'user') => {
             // 简单起见，我们将所有非 userMessage 的 item 归类到 assistant 消息
             // 在实际实现中，需要根据 turnId 关联
             let msg = currentMessages.find(m => m.id === turnId); // 用 turnId 作为消息 ID
@@ -121,7 +121,11 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
 
         switch (event.method) {
             case 'turn/started':
-                // 新的一轮对话
+                setIsThinking(true);
+                break;
+
+            case 'turn/completed':
+                setIsThinking(false);
                 break;
 
             case 'item/started': {
@@ -140,6 +144,7 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
                     newItem.tool = item.tool;
                     newItem.arguments = item.arguments;
                 }
+
                 break;
             }
 
@@ -151,7 +156,6 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
                 item.content = (item.content || '') + delta;
                 // 同时也更新消息的主要内容（如果是纯文本）
                 msg.content = (msg.content || '') + delta;
-                setIsThinking(false); // 收到内容，停止思考状态
                 break;
             }
 
@@ -175,13 +179,13 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
 
     // 处理 Approval 请求
     const processApprovalRequest = (payload: any) => {
-        const currentMessages = [...latestMessages.current];
-        const { threadId, turnId, itemId, approvalId, method } = payload;
+        const currentMessages = [...(latestMessages.current || [])];
+        const { turnId, itemId, approvalId } = payload;
 
         const msg = currentMessages.find(m => m.id === turnId);
         if (!msg) return;
 
-        const item = msg.items.find(i => i.id === itemId);
+        const item = msg.items.find((i: any) => i.id === itemId);
         if (item) {
             item.approvalId = approvalId;
             item.status = 'pending'; // 等待审批
@@ -250,7 +254,7 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
         });
 
         // 乐观更新 UI 状态
-        const currentMessages = [...latestMessages.current];
+        const currentMessages = [...(latestMessages.current || [])];
         for (const msg of currentMessages) {
             for (const item of msg.items) {
                 if (item.approvalId === approvalId) {
