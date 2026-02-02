@@ -3,6 +3,7 @@ import { useLatest } from 'ahooks';
 import { nanoid } from 'nanoid';
 import type { ChatMessage, CodexItem } from '../types/chat';
 import type { RunView } from '../types/ir';
+import { appendSystemErrorStep } from '../lib/system-error';
 
 interface UseCodexStreamOptions {
     userId: string;
@@ -67,6 +68,9 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
                 } else {
                     resolve(data.payload);
                 }
+            } else if (data.type === 'error') {
+                setIsThinking(false);
+                setRunView((prev) => appendSystemErrorStep(prev ?? null, data.payload || {}));
             }
         } else if (data.type === 'event') {
             const event = data.payload;
