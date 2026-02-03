@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useLatest } from 'ahooks';
 import { nanoid } from 'nanoid';
 import type { ChatMessage, CodexItem } from '../types/chat';
-import type { RunView } from '../types/ir';
-import { appendSystemErrorStep } from '../lib/system-error';
+import type { RunView, StepView } from '../types/ir';
+import { createSystemErrorStep, mergeRunWithSystemErrors } from '../lib/system-error';
 
 interface UseCodexStreamOptions {
     userId: string;
@@ -14,7 +14,8 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
     const wsRef = useRef<WebSocket | null>(null);
     const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [runView, setRunView] = useState<RunView | null>(null);
+    const [baseRun, setBaseRun] = useState<RunView | null>(null);
+    const [systemErrors, setSystemErrors] = useState<StepView[]>([]);
     const latestMessages = useLatest(messages);
     const pendingRequests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; }>());
     const [isThinking, setIsThinking] = useState(false);
@@ -70,14 +71,15 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
                 }
             } else if (data.type === 'error') {
                 setIsThinking(false);
-                setRunView((prev) => appendSystemErrorStep(prev ?? null, data.payload || {}));
+                const step = createSystemErrorStep(data.payload || {});
+                setSystemErrors((prev) => [...prev, step]);
             }
         } else if (data.type === 'event') {
             const event = data.payload;
             onEvent?.(event);
             processCodexEvent(event);
         } else if (data.type === 'ir/update') {
-            setRunView(data.payload as RunView);
+            setBaseRun(data.payload as RunView);
         } else if (data.type === 'approval/request') {
             processApprovalRequest(data.payload);
         }
@@ -126,6 +128,7 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
 
             case 'turn/completed':
                 setIsThinking(false);
+                setSystemErrors([]);
                 break;
 
             case 'item/started': {
@@ -265,6 +268,14 @@ export function useCodexStream({ userId, onEvent }: UseCodexStreamOptions) {
         }
         setMessages([...currentMessages]);
     };
+
+    const runView = useMemo(() => {
+        if (!baseRun) {
+            if (systemErrors.length === 0) return null;
+            return { runId: systemErrors[0]?.threadId ?? 'local', steps: [...systemErrors] } as RunView;
+        }
+        return mergeRunWithSystemErrors(baseRun, systemErrors);
+    }, [baseRun, systemErrors]);
 
     useEffect(() => {
         connect();

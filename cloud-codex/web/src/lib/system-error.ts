@@ -9,13 +9,8 @@ type ErrorPayload = {
     turnId?: string;
 };
 
-export function appendSystemErrorStep(run: RunView | null, payload: ErrorPayload): RunView {
-    const baseRun: RunView = run ?? {
-        runId: payload.threadId ?? 'local',
-        steps: [],
-    };
-
-    const step: StepView = {
+export function createSystemErrorStep(payload: ErrorPayload): StepView {
+    return {
         stepId: `sys_err_${Date.now()}`,
         kind: 'systemNote',
         status: 'failed',
@@ -29,9 +24,20 @@ export function appendSystemErrorStep(run: RunView | null, payload: ErrorPayload
             source: payload.source,
         },
     };
+}
 
+export function mergeRunWithSystemErrors(run: RunView, errors: StepView[]): RunView {
     return {
-        ...baseRun,
-        steps: [...baseRun.steps, step],
+        ...run,
+        steps: [...run.steps, ...errors],
     };
+}
+
+export function appendSystemErrorStep(run: RunView | null, payload: ErrorPayload): RunView {
+    const baseRun: RunView = run ?? {
+        runId: payload.threadId ?? 'local',
+        steps: [],
+    };
+    const step = createSystemErrorStep(payload);
+    return mergeRunWithSystemErrors(baseRun, [step]);
 }
